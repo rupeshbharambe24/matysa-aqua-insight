@@ -1,54 +1,77 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Upload, Image as ImageIcon, Loader2 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft } from "lucide-react";
+import ImageCapture from "@/components/ImageCapture";
+import AnalysisLoader from "@/components/AnalysisLoader";
+import ResultCard from "@/components/ResultCard";
+import SaveButton from "@/components/SaveButton";
 
 const API_BASE_URL = "http://localhost:8000";
+
+// Mock response for testing
+const mockAnalysisResult = {
+  species: "Labeo rohita",
+  freshness: "Fresh",
+  length_cm: 22.4,
+  weight_kg: 0.86,
+  volume_cm3: 902.1,
+  confidence_scores: {
+    species: 0.94,
+    freshness: 0.91,
+    scale_mode: 0.89,
+  },
+  scale_mode: "Standard",
+};
+
+type AnalysisState = "idle" | "analyzing" | "complete";
 
 const AI = () => {
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const { toast } = useToast();
+  const [analysisState, setAnalysisState] = useState<AnalysisState>("idle");
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+  const handleImageSelected = (file: File, preview: string) => {
+    setSelectedImage(file);
+    setPreviewUrl(preview);
+    setAnalysisState("idle");
+    setAnalysisResult(null);
+  };
+
+  const handleClearImage = () => {
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
     }
+    setSelectedImage(null);
+    setPreviewUrl(null);
+    setAnalysisState("idle");
+    setAnalysisResult(null);
   };
 
   const handleAnalyze = async () => {
-    if (!selectedImage) {
-      toast({
-        title: "No image selected",
-        description: "Please select an image to analyze",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!selectedImage) return;
 
-    setAnalyzing(true);
-    
-    // Simulate API call - replace with actual API call later
-    setTimeout(() => {
-      setAnalyzing(false);
-      toast({
-        title: "Analysis Complete",
-        description: "Fish species identified successfully!",
-      });
-    }, 2000);
+    setAnalysisState("analyzing");
 
     // Future API integration:
     // const formData = new FormData();
     // formData.append('image', selectedImage);
-    // const response = await fetch(`${API_BASE_URL}/analyze`, {
+    // const response = await fetch(`${API_BASE_URL}/api/analyze`, {
     //   method: 'POST',
     //   body: formData,
     // });
+    // const result = await response.json();
+    // setAnalysisResult(result);
+  };
+
+  const handleAnalysisComplete = () => {
+    // Simulate receiving results from backend
+    setAnalysisResult(mockAnalysisResult);
+    setAnalysisState("complete");
+  };
+
+  const handleStartNew = () => {
+    handleClearImage();
   };
 
   return (
@@ -58,106 +81,87 @@ const AI = () => {
           MATSYA AI Analysis
         </h1>
         <p className="text-muted-foreground">
-          Upload a fish image for AI-powered species identification
+          Capture or upload a fish image for comprehensive AI-powered analysis
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Upload Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Upload className="h-5 w-5" />
-              Upload Image
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  className="hidden"
-                  id="image-upload"
+      <div className="space-y-6">
+        {/* Image Capture/Preview */}
+        {analysisState === "idle" && (
+          <>
+            <ImageCapture
+              onImageSelected={handleImageSelected}
+              selectedImage={previewUrl}
+              onClear={handleClearImage}
+            />
+
+            {selectedImage && (
+              <Button onClick={handleAnalyze} className="w-full" size="lg">
+                Analyze Image
+              </Button>
+            )}
+          </>
+        )}
+
+        {/* Analysis Loader */}
+        {analysisState === "analyzing" && (
+          <AnalysisLoader onComplete={handleAnalysisComplete} />
+        )}
+
+        {/* Results */}
+        {analysisState === "complete" && analysisResult && (
+          <>
+            {/* Image Preview */}
+            {previewUrl && (
+              <div className="rounded-lg overflow-hidden border shadow-card">
+                <img
+                  src={previewUrl}
+                  alt="Analyzed"
+                  className="w-full h-64 object-cover"
                 />
-                <label
-                  htmlFor="image-upload"
-                  className="cursor-pointer flex flex-col items-center gap-2"
-                >
-                  <ImageIcon className="h-12 w-12 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">
-                    Click to upload or drag and drop
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    PNG, JPG, JPEG (max 10MB)
-                  </span>
-                </label>
               </div>
+            )}
 
-              {previewUrl && (
-                <div className="rounded-lg overflow-hidden border">
-                  <img
-                    src={previewUrl}
-                    alt="Preview"
-                    className="w-full h-48 object-cover"
-                  />
-                </div>
-              )}
+            {/* Results */}
+            <ResultCard result={analysisResult} />
 
+            {/* Action Buttons */}
+            <div className="space-y-3">
+              <SaveButton
+                result={analysisResult}
+                imageFile={selectedImage}
+                disabled={!analysisResult}
+              />
               <Button
-                onClick={handleAnalyze}
-                disabled={!selectedImage || analyzing}
-                className="w-full"
+                onClick={handleStartNew}
+                variant="outline"
                 size="lg"
+                className="w-full"
               >
-                {analyzing ? (
-                  <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Analyzing...
-                  </>
-                ) : (
-                  "Analyze Image"
-                )}
+                <ArrowLeft className="mr-2 h-5 w-5" />
+                Analyze Another Image
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </>
+        )}
 
-        {/* Results Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Analysis Results</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-12 text-muted-foreground">
-              <ImageIcon className="h-16 w-16 mx-auto mb-4 opacity-50" />
-              <p>Upload and analyze an image to see results</p>
+        {/* Info Cards (shown when idle) */}
+        {analysisState === "idle" && !selectedImage && (
+          <div className="grid gap-4 sm:grid-cols-3 mt-8">
+            <div className="p-6 rounded-lg bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20 text-center">
+              <div className="text-3xl font-bold text-primary mb-1">95%+</div>
+              <div className="text-sm text-muted-foreground">Accuracy</div>
             </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Info Cards */}
-      <div className="grid gap-4 sm:grid-cols-3 mt-6">
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <div className="text-3xl font-bold text-primary mb-1">95%+</div>
-            <div className="text-sm text-muted-foreground">Accuracy</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <div className="text-3xl font-bold text-secondary mb-1">50+</div>
-            <div className="text-sm text-muted-foreground">Species</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6 text-center">
-            <div className="text-3xl font-bold text-accent mb-1">Fast</div>
-            <div className="text-sm text-muted-foreground">Real-time</div>
-          </CardContent>
-        </Card>
+            <div className="p-6 rounded-lg bg-gradient-to-br from-secondary/10 to-secondary/5 border border-secondary/20 text-center">
+              <div className="text-3xl font-bold text-secondary mb-1">50+</div>
+              <div className="text-sm text-muted-foreground">Species</div>
+            </div>
+            <div className="p-6 rounded-lg bg-gradient-to-br from-accent/10 to-accent/5 border border-accent/20 text-center">
+              <div className="text-3xl font-bold text-accent mb-1">&lt;5s</div>
+              <div className="text-sm text-muted-foreground">Real-time</div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
